@@ -13,11 +13,7 @@
       "name": "codeloop",
       "description": "AI 자율 개발 루프 — codeloop start 한 번이면 목표 LOC까지 AI가 알아서 개발·sleep·재개를 반복한다.",
       "source": "./",
-      "strict": false,
-      "skills": [
-        "./skills/codeloop-init",
-        "./skills/codeloop"
-      ]
+      "strict": true
     }
   ]
 }
