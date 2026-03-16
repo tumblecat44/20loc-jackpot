@@ -9,7 +9,18 @@ nowimslepe 프로젝트에서 **311K LOC** 달성으로 검증된 Ralph Loop 엔
 ## Install
 
 ```bash
-claude /install-plugin https://github.com/tumblecat44/20loc-jackpot
+# 1. Marketplace 등록
+/plugin marketplace add https://github.com/tumblecat44/20loc-jackpot.git
+
+# 2. 플러그인 설치
+/plugin install codeloop@tumblecat44-20loc-jackpot
+```
+
+또는 대화형 UI에서:
+
+```bash
+/plugin
+# → Discover 탭 → codeloop 선택 → 설치 범위(user/project/local) 선택
 ```
 
 설치하면 Stop Hook이 자동 등록된다. `settings.local.json`을 직접 편집할 필요 없음.
