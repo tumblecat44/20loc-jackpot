@@ -3,8 +3,8 @@ name: codeloop-init
 description: |
   Interactive project setup wizard for Codeloop — the AI autonomous development loop engine.
   Guides users through choosing what to build, deployment stack, and payment provider,
-  then generates codeloop.yaml + PROMPT.md + project scaffolding so they can immediately
-  run `codeloop start`.
+  then generates codeloop.yaml + PROMPT.md + start.sh + project scaffolding so they can
+  immediately run `./start.sh`.
 
   Use this skill when the user wants to start a new codeloop project, says "codeloop init",
   "init project", "new project setup", "what should I build", or anything about setting up
@@ -137,7 +137,61 @@ Set up the Stop Hook:
 }
 ```
 
-### 5. `CLAUDE.md`
+### 5. `start.sh`
+
+루프 런처 스크립트. `chmod +x` 필수.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")"
+
+CONFIG="codeloop.yaml"
+[ -f "$CONFIG" ] || { echo "❌ codeloop.yaml not found"; exit 1; }
+
+yaml_val() { grep "^[[:space:]]*$1:" "$CONFIG" | head -1 | sed "s/.*$1:[[:space:]]*//" | tr -d '"'"'"; }
+
+PROMPT_PATH=$(yaml_val prompt); PROMPT_PATH=${PROMPT_PATH:-./PROMPT.md}
+MODEL=$(yaml_val model); MODEL=${MODEL:-opus}
+PROJECT_NAME=$(yaml_val name); PROJECT_NAME=${PROJECT_NAME:-codeloop}
+
+[ -f "$PROMPT_PATH" ] || { echo "❌ $PROMPT_PATH not found"; exit 1; }
+PROMPT=$(cat "$PROMPT_PATH")
+
+if [ ! -d .git ]; then
+  git init
+  printf "node_modules/\ndist/\nbuild/\n.next/\n__pycache__/\n*.pyc\n.env\n.env.local\n.venv/\n" > .gitignore
+  git add .gitignore && git commit -m "Initial commit"
+fi
+
+mkdir -p .claude
+cat > .claude/codeloop.state.md <<STATE
+---
+active: true
+iteration: 0
+started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+config: "$CONFIG"
+---
+
+$PROMPT
+STATE
+
+rm -f .claude/loc-status.md
+
+GATES=$(grep 'type:' "$CONFIG" 2>/dev/null | grep -v 'project\|stack' | sed 's/.*type:[[:space:]]*//' | tr '\n' ', ' | sed 's/,$//')
+cat <<BANNER
+============================================================
+  🚀 codeloop — AI 자율 개발 루프
+============================================================
+  프로젝트: $PROJECT_NAME | 모델: $MODEL | 게이트: $GATES
+  중지: rm .claude/codeloop.state.md
+============================================================
+BANNER
+
+claude --dangerously-skip-permissions --model "$MODEL" --verbose -p "$PROMPT"
+```
+
+### 6. `CLAUDE.md`
 
 Generate project-specific CLAUDE.md with:
 - User language preference (Korean if detected)
@@ -160,10 +214,10 @@ Setup complete!
   Generated:
     codeloop.yaml     — Loop configuration
     PROMPT.md          — AI founder instructions
+    start.sh           — Loop launcher (chmod +x)
     CLAUDE.md          — Project context
-    .claude/hooks/     — Stop hook + gates (will be created by codeloop)
 
-  Next: run `codeloop start` to begin autonomous development.
+  Next: run `./start.sh` to begin autonomous development.
 ```
 
 ## Important Notes

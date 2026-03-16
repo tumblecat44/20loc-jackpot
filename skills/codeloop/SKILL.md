@@ -49,7 +49,12 @@ description: |
    ⚠️  --dangerously-skip-permissions 모드로 실행됩니다.
    중지하려면: /codeloop stop
    ```
-6. 다음 명령어를 Bash로 실행:
+6. 사용자에게 안내:
+   ```
+   ⚠️  루프 실행은 별도 터미널에서 ./start.sh 로 실행하세요.
+   이 세션에서는 루프가 유지되지 않습니다.
+   ```
+   사용자가 이 세션에서 직접 실행을 원하면:
    ```bash
    claude --dangerously-skip-permissions --model {model} -p "$(cat .claude/codeloop.state.md)"
    ```
