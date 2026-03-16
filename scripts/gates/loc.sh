@@ -5,8 +5,8 @@ set -euo pipefail
 
 CONFIG="$1"
 PROJECT_DIR="$2"
-SCRIPTS="$(dirname "$(dirname "$0")")/scripts"
-source "$SCRIPTS/parse-yaml.sh" 2>/dev/null || source "$(dirname "$0")/../parse-yaml.sh"
+SCRIPTS="$(cd "$(dirname "$0")/.." && pwd)"
+source "$SCRIPTS/parse-yaml.sh"
 
 TARGET=$(yaml_get "gates" "$CONFIG" 2>/dev/null || echo "")
 # gates 배열에서 loc target 추출
