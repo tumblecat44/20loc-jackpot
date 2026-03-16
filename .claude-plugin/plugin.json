@@ -8,6 +8,5 @@
   "repository": "https://github.com/tumblecat44/20loc-jackpot",
   "license": "MIT",
   "keywords": ["autonomous", "loop", "code-generation", "rate-limit"],
-  "hooks": "./hooks/hooks.json",
   "skills": "./skills/"
 }
