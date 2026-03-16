@@ -128,7 +128,7 @@ codeloop init
   │
   ├─ Q2: 배포 환경?
   │   ├─ 1. Solo Vibe Coder (무료/저렴)
-  │   │     → Vercel + Railway + Lemon Squeezy
+  │   │     → Vercel + Railway + Stripe
   │   └─ 2. Funded / Serious (스케일 대비)
   │         → AWS (EKS/RDS/S3) + Stripe + CloudFront
   │
@@ -149,7 +149,7 @@ codeloop init
 
 | 타입 | Solo Vibe Coder | Funded |
 |------|-----------------|--------|
-| **Web** | Vercel + Railway + LemonSqueezy | AWS + Stripe |
+| **Web** | Vercel + Railway + Stripe | AWS + Stripe |
 | | Next.js API Routes, Prisma, R2 | Express 분리, RDS, S3, CloudFront |
 | **Mobile** | Expo + Supabase + RevenueCat | Expo + Express + AWS + Stripe |
 | **Full** | Vercel + Railway, 8개 패키지 | AWS EKS, 13+ 패키지 (Photo AI급) |

@@ -20,7 +20,7 @@ backend: Python FastAPI 0.135 (uvicorn, async)
 database: Railway PostgreSQL 18 (SQLAlchemy 2 + Alembic)
 cache: Railway Redis 8 (if needed)
 auth: FastAPI JWT + OAuth (Google, GitHub) / Clerk frontend
-payments: Lemon Squeezy
+payments: Stripe
 storage: Cloudflare R2 (S3-compatible, free tier generous)
 deploy_frontend: Vercel
 deploy_backend: Railway
@@ -73,7 +73,7 @@ mobile: React Native 0.84 (Expo SDK 55, New Architecture default)
 backend: Python FastAPI 0.135 (uvicorn)
 database: Railway PostgreSQL 18 (SQLAlchemy 2 + Alembic)
 auth: FastAPI JWT + OAuth / Expo AuthSession
-payments: RevenueCat (in-app purchases) + Lemon Squeezy (web billing)
+payments: RevenueCat (in-app purchases) + Stripe (web billing)
 storage: Cloudflare R2
 push: Expo Push Notifications
 deploy_backend: Railway
@@ -130,7 +130,7 @@ worker: Celery + Redis 8 (or ARQ for lightweight async tasks)
 database: Railway PostgreSQL 18 (SQLAlchemy 2 + Alembic)
 cache: Railway Redis 8
 auth: FastAPI JWT + OAuth (shared between web/mobile)
-payments: Lemon Squeezy
+payments: Stripe
 storage: Cloudflare R2
 deploy_frontend: Vercel
 deploy_backend: Railway

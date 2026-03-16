@@ -90,7 +90,7 @@ Loop auto-stops when target is reached.
 ```
 Frontend (Next.js 16) → FastAPI (Python) → PostgreSQL 18 + Redis 8
                                          → Storage (S3/R2)
-                                         → Payments (Stripe/Lemon Squeezy)
+                                         → Payments (Stripe)
 ```
 
 ### Mobile App

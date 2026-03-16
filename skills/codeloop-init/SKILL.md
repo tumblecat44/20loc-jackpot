@@ -42,7 +42,7 @@ Your deployment setup?
 
   1. Solo Vibe Coder
      Free/cheap tier. Ship fast, pay later.
-     → Vercel (frontend) + Railway (backend) + Lemon Squeezy (payments)
+     → Vercel (frontend) + Railway (backend) + Stripe (payments)
 
   2. Funded / Serious
      Real infra. Scale-ready from day one.
