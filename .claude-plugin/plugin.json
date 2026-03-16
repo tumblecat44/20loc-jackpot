@@ -1,0 +1,16 @@
+{
+  "name": "codeloop",
+  "version": "1.0.0",
+  "description": "AI 자율 개발 루프 엔진 — Stop Hook 기반 무한 반복 + OAuth API 사용량 관리",
+  "author": "dgsw67",
+  "hooks": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "\"${CLAUDE_PLUGIN_ROOT}/hooks/stop-hook.sh\"",
+        "timeout": 600
+      }
+    ]
+  },
+  "skills": ["codeloop-init", "codeloop"]
+}
