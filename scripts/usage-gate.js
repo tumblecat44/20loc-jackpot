@@ -1,12 +1,12 @@
 #!/usr/bin/env node
-// usage-gate.js — OAuth API 기반 사용량 감지
-// 원조: nowimslepe/.claude/hooks/usage-gate.py (iteration 추정) → OAuth API 실측으로 교체
+// usage-gate.js — 사용량 감지 (OAuth API > iteration 폴백)
 // 출력: JSON (stdout), 종료코드: 항상 0
 
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const https = require('https');
+const os = require('os');
 
 // CLI 인자 파싱
 const args = process.argv.slice(2);
@@ -23,8 +23,11 @@ function readConfig(file) {
       const m = text.match(new RegExp(`^\\s*${key}:\\s*(.+)`, 'm'));
       return m ? m[1].trim().replace(/^['"]|['"]$/g, '') : null;
     };
+    let threshold = parseFloat(get('threshold')) || 90;
+    // 0.90 같은 소수 표기(=90%) → 퍼센트로 변환
+    if (threshold > 0 && threshold <= 1) threshold = threshold * 100;
     return {
-      threshold: parseFloat(get('threshold')) || 90,
+      threshold,
       cooldown: parseInt(get('cooldown_seconds')) || 30,
       buffer: parseInt(get('sleep_buffer_seconds')) || 60,
     };
@@ -32,7 +35,7 @@ function readConfig(file) {
 }
 
 // 캐시 경로
-const CACHE_DIR = path.join(require('os').homedir(), '.codeloop');
+const CACHE_DIR = path.join(os.homedir(), '.codeloop');
 const CACHE_FILE = path.join(CACHE_DIR, '.usage-cache.json');
 const CACHE_TTL = 30_000; // 30초
 
@@ -58,12 +61,17 @@ function getCredentials() {
       'security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null',
       { encoding: 'utf8', timeout: 5000 }
     ).trim();
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    // 중첩 구조 대응: { claudeAiOauth: { accessToken, refreshToken } }
+    const oauth = parsed.claudeAiOauth || parsed;
+    return { accessToken: oauth.accessToken, refreshToken: oauth.refreshToken };
   } catch {
     // Linux 폴백
     try {
-      const credPath = path.join(require('os').homedir(), '.claude', '.credentials.json');
-      return JSON.parse(fs.readFileSync(credPath, 'utf8'));
+      const credPath = path.join(os.homedir(), '.claude', '.credentials.json');
+      const parsed = JSON.parse(fs.readFileSync(credPath, 'utf8'));
+      const oauth = parsed.claudeAiOauth || parsed;
+      return { accessToken: oauth.accessToken, refreshToken: oauth.refreshToken };
     } catch { return null; }
   }
 }
@@ -117,8 +125,7 @@ function fetchUsage(accessToken) {
   });
 }
 
-// iteration 폴백 (원조 방식) — OAuth API 실패 시에만 사용
-// 주의: 이건 추정치일 뿐 실제 사용량과 다를 수 있음 → sleep을 보수적으로 짧게
+// iteration 폴백 — OAuth API 실패 시 사용
 function iterationFallback(projectDir) {
   const stateFile = path.join(projectDir, '.claude', 'codeloop.state.md');
   try {
@@ -133,8 +140,6 @@ function iterationFallback(projectDir) {
       weekly_pct: 0,
       resets_at: null,
       iteration: iter,
-      // OAuth 실패 시 과도한 sleep 방지: 최대 60초 cooldown만
-      // (stop-hook.sh에서도 iteration_fallback sleep을 cap하지만 이중 보호)
       action: 'cooldown',
       sleep_seconds: 30,
     };
@@ -146,47 +151,44 @@ function iterationFallback(projectDir) {
 async function main() {
   const cfg = readConfig(configPath);
 
-  // 캐시 확인
+  // 1순위: 자체 캐시 (이전 실행에서 저장한 값)
   const cached = readCache();
   if (cached && cached.five_hour_pct !== undefined) {
-    const result = buildResult(cached.five_hour_pct, cached.weekly_pct, cached.resets_at, 'oauth', cfg);
+    const result = buildResult(cached.five_hour_pct, cached.weekly_pct, cached.resets_at, cached.source || 'cache', cfg);
     console.log(JSON.stringify(result));
     return;
   }
 
-  // OAuth 시도
+  // 2순위: OAuth API 직접 호출
   const creds = getCredentials();
-  if (!creds || !creds.accessToken) {
-    console.log(JSON.stringify(iterationFallback(projectDir)));
-    return;
+  if (creds && creds.accessToken) {
+    try {
+      let resp = await fetchUsage(creds.accessToken);
+
+      // 401 → 토큰 갱신 후 재시도
+      if (resp.status === 401 && creds.refreshToken) {
+        const newTokens = await refreshToken(creds);
+        if (newTokens.access_token) {
+          resp = await fetchUsage(newTokens.access_token);
+        }
+      }
+
+      if (resp.status === 200) {
+        const u = resp.body;
+        const fiveHr = u.fiveHourPercent ?? u.five_hour?.utilization * 100 ?? 0;
+        const weekly = u.weeklyPercent ?? u.weekly?.utilization * 100 ?? 0;
+        const resetsAt = u.fiveHourResetsAt ?? u.five_hour?.resets_at ?? null;
+
+        writeCache({ five_hour_pct: fiveHr, weekly_pct: weekly, resets_at: resetsAt, source: 'oauth' });
+
+        const result = buildResult(fiveHr, weekly, resetsAt, 'oauth', cfg);
+        console.log(JSON.stringify(result));
+        return;
+      }
+    } catch {}
   }
 
-  try {
-    let resp = await fetchUsage(creds.accessToken);
-
-    // 401 → 토큰 갱신 후 재시도
-    if (resp.status === 401 && creds.refreshToken) {
-      const newTokens = await refreshToken(creds);
-      if (newTokens.access_token) {
-        resp = await fetchUsage(newTokens.access_token);
-      }
-    }
-
-    if (resp.status === 200) {
-      const u = resp.body;
-      const fiveHr = u.fiveHourPercent ?? u.five_hour?.utilization * 100 ?? 0;
-      const weekly = u.weeklyPercent ?? u.weekly?.utilization * 100 ?? 0;
-      const resetsAt = u.fiveHourResetsAt ?? u.five_hour?.resets_at ?? null;
-
-      writeCache({ five_hour_pct: fiveHr, weekly_pct: weekly, resets_at: resetsAt });
-
-      const result = buildResult(fiveHr, weekly, resetsAt, 'oauth', cfg);
-      console.log(JSON.stringify(result));
-      return;
-    }
-  } catch {}
-
-  // OAuth 실패 → iteration 폴백
+  // 3순위: iteration 폴백 (최후 수단)
   console.log(JSON.stringify(iterationFallback(projectDir)));
 }
 

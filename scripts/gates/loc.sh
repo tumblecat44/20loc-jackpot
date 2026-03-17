@@ -105,7 +105,10 @@ chmod +x "$FIND_SCRIPT"
 TOTAL=0
 FILE_COUNT=0
 while IFS= read -r file; do
+  [ -z "$file" ] && continue
   lines=$(grep -cve '^\s*$' "$file" 2>/dev/null || echo 0)
+  lines=${lines%%[^0-9]*}
+  lines=${lines:-0}
   TOTAL=$((TOTAL + lines))
   FILE_COUNT=$((FILE_COUNT + 1))
 done < <(bash "$FIND_SCRIPT" "$PROJECT_DIR")

@@ -116,28 +116,7 @@ Read `references/stacks.md` for what directories each preset needs.
 DON'T create actual code files yet — just the directory structure + essential configs
 (package.json, tsconfig.json, etc.). The loop will fill in the code.
 
-### 4. `.claude/settings.local.json`
-
-Set up the Stop Hook:
-```json
-{
-  "hooks": {
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/stop-hook.sh\"",
-            "timeout": 120
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### 5. `start.sh`
+### 4. `start.sh`
 
 루프 런처 스크립트. `chmod +x` 필수.
 
@@ -188,10 +167,15 @@ cat <<BANNER
 ============================================================
 BANNER
 
+export CODELOOP_ACTIVE=1
 claude --dangerously-skip-permissions --model "$MODEL" --verbose -p "$PROMPT"
 ```
 
-### 6. `CLAUDE.md`
+> **Note**: Stop Hook은 codeloop 플러그인의 `hooks/hooks.json`이 자동 등록한다.
+> `.claude/settings.local.json`에 별도 hook을 만들지 않는다 — 플러그인 업데이트 시
+> 버전 고정 문제가 발생하기 때문.
+
+### 5. `CLAUDE.md`
 
 Generate project-specific CLAUDE.md with:
 - User language preference (Korean if detected)
