@@ -63,6 +63,7 @@ Like Pieter Levels, you build million-dollar products alone.
 3. Ask yourself: **"If I need to make money with {PROJECT_NAME} tomorrow, what's the most impactful thing I can add right now?"**
 4. Whatever the answer — build it. Now.
 5. Go deep in one area at a time.
+6. **Commit after every meaningful unit of work.** Don't batch — one feature/fix = one commit. Use conventional commit messages (`feat:`, `fix:`, `refactor:`). This creates a clear history and prevents losing progress if the loop stops unexpectedly.
 
 ## Code Quality Rules
 
