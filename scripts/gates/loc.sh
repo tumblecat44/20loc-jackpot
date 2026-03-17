@@ -13,13 +13,17 @@ TARGET=$(yaml_get "gates" "$CONFIG" 2>/dev/null || echo "")
 TARGET=$(grep -A2 'type: loc' "$CONFIG" | grep 'target:' | head -1 | awk '{print $2}')
 TARGET=${TARGET:-200000}
 
-# 제외 디렉토리 (원조 58개 그대로)
-EXCLUDES="node_modules .next dist build out .output coverage __pycache__ .pytest_cache venv .venv env .env vendor .git .bkit .omc .claude .turbo .cache .nuxt .svelte-kit target .gradle .idea .vscode storybook-static .parcel-cache .expo .terraform .serverless cdk.out .aws-sam .vercel .netlify migrations"
+# 제외 디렉토리 (원조 58개 + 추가)
+EXCLUDES="node_modules .next dist build out .output coverage __pycache__ .pytest_cache venv .venv env .env vendor .git .bkit .omc .claude .turbo .cache .nuxt .svelte-kit target .gradle .idea .vscode storybook-static .parcel-cache .expo .terraform .serverless cdk.out .aws-sam .vercel .netlify migrations .mypy_cache .ruff_cache .tox eggs *.egg-info site-packages"
 
-# find 제외 옵션 생성
-FIND_EXCLUDES=""
+# find 제외 옵션 생성 (-prune 방식: 디렉토리 자체를 순회하지 않아 확실하고 빠름)
+PRUNE_EXPR=""
 for d in $EXCLUDES; do
-  FIND_EXCLUDES="$FIND_EXCLUDES -not -path '*/$d/*'"
+  if [ -z "$PRUNE_EXPR" ]; then
+    PRUNE_EXPR="-name '$d'"
+  else
+    PRUNE_EXPR="$PRUNE_EXPR -o -name '$d'"
+  fi
 done
 
 # 소스 확장자 (원조 63개 그대로)
@@ -50,7 +54,7 @@ while IFS= read -r file; do
     TOTAL=$((TOTAL + lines))
     FILE_COUNT=$((FILE_COUNT + 1))
   fi
-done < <(eval "find \"$PROJECT_DIR\" -type f $FIND_EXCLUDES $FIND_FILE_EXCLUDES \\( $FIND_INCLUDES \\)" 2>/dev/null)
+done < <(eval "find \"$PROJECT_DIR\" \\( -type d \\( $PRUNE_EXPR \\) -prune \\) -o -type f $FIND_FILE_EXCLUDES \\( $FIND_INCLUDES \\) -print" 2>/dev/null)
 
 REMAINING=$((TARGET - TOTAL))
 [ $REMAINING -lt 0 ] && REMAINING=0
