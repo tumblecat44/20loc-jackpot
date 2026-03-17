@@ -4,7 +4,22 @@
 # 역할: 매 Claude 세션 종료 시 usage → gates → dashboard → block(루프 지속)
 set -euo pipefail
 
-PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
+# ─── Hot Reload: 최신 캐시 버전 동적 resolve ───
+# CLAUDE_PLUGIN_ROOT는 프로세스 시작 시 고정 → 루프 중 버전 bump해도 옛 코드 실행
+# 해결: 매 iteration마다 캐시에서 최신 semver 디렉토리를 찾아 SCRIPTS 경로를 갱신
+_resolve_latest_plugin() {
+  local orig="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
+  local cache_base="${orig%/*}"  # .../codeloop/ (버전 디렉토리의 부모)
+  # semver 디렉토리만 필터 (d1604f7b 같은 hash 제외)
+  local latest=$(ls -d "$cache_base"/[0-9]*.[0-9]*.[0-9]* 2>/dev/null | sort -V | tail -1)
+  if [ -n "$latest" ] && [ -d "$latest/scripts" ]; then
+    echo "$latest"
+  else
+    echo "$orig"
+  fi
+}
+
+PLUGIN_ROOT=$(_resolve_latest_plugin)
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 CONFIG="$PROJECT_DIR/codeloop.yaml"
 STATE="$PROJECT_DIR/.claude/codeloop.state.md"
@@ -31,6 +46,7 @@ ITER=$((ITER + 1))
 sed -i.bak "s/^iteration:.*/iteration: $ITER/" "$STATE" && rm -f "$STATE.bak"
 
 log "━━━ ITERATION #$ITER START ━━━"
+log "PLUGIN: resolved=$PLUGIN_ROOT (orig=${CLAUDE_PLUGIN_ROOT:-unset})"
 
 # Step 1: Usage Gate (OAuth API → sleep 또는 pass)
 USAGE_RESULT=$(node "$SCRIPTS/usage-gate.js" --config "$CONFIG" --project "$PROJECT_DIR" 2>/dev/null || echo '{"action":"cooldown","sleep_seconds":30,"source":"error_fallback"}')
