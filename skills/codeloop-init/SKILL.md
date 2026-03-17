@@ -414,14 +414,22 @@ The validation script from Phase 2. `chmod +x`.
 ### 5. `start.sh`
 
 The loop launcher. This IS the codeloop engine — do NOT call `codeloop start` or any external CLI.
+CRITICAL: Do NOT set `CODELOOP_ACTIVE=1` — it activates the global Stop hook which conflicts with while loop.
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# ─── Env validation gate ───
-bash validate-env.sh || exit 1
+echo "🚀 {PROJECT_NAME}"
+echo ""
+
+# ─── Env validation gate (skip with --skip-env) ───
+if [[ "${1:-}" != "--skip-env" ]]; then
+  bash validate-env.sh || exit 1
+else
+  echo "⚠️  Env validation skipped — assuming all vars are set"
+fi
 
 # ─── 설정 로드 ───
 CONFIG="codeloop.yaml"
@@ -438,22 +446,15 @@ PROMPT=$(cat "$PROMPT_PATH")
 
 # ─── git 초기화 ───
 if [ ! -d .git ]; then
-  git init && printf "node_modules/\n.next/\n__pycache__/\n.env\n.env.local\n.venv/\n" > .gitignore
+  git init
+  printf "node_modules/\n.next/\n__pycache__/\n.env\n.env.local\n.venv/\n" > .gitignore
   git add .gitignore && git commit -m "Initial commit"
 fi
 
 # ─── 상태 파일 ───
 mkdir -p .claude
-cat > .claude/codeloop.state.md <<STATE
----
-active: true
-iteration: 0
-started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
----
-
-$PROMPT
-STATE
-
+STATE=".claude/codeloop.state.md"
+echo "active" > "$STATE"
 rm -f .claude/loc-status.md
 
 # ─── 배너 ───
@@ -469,12 +470,49 @@ cat <<BANNER
 BANNER
 
 # ─── 루프 실행 ───
-# Stop Hook이 게이트 체크 → state 파일 삭제로 종료 제어
-export CODELOOP_ACTIVE=1
+# CODELOOP_ACTIVE를 설정하지 않음 → 글로벌 Stop hook 비활성
+# while 루프가 단독으로 반복 제어 + LOC 카운트 + 대시보드 갱신
+ITER=0
+while [ -f "$STATE" ]; do
+  ITER=$((ITER + 1))
+  echo ""
+  echo "━━━ iteration #$ITER ━━━"
 
-while [ -f .claude/codeloop.state.md ]; do
   claude --dangerously-skip-permissions --model "$MODEL" --verbose -p "$PROMPT" || true
-  [ ! -f .claude/codeloop.state.md ] && echo "🎉 codeloop 완료" && break
+
+  [ ! -f "$STATE" ] && echo "🎉 codeloop 완료" && break
+
+  # LOC 카운트 + 대시보드
+  LOC=$(find packages -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.css" \) ! -path '*/node_modules/*' ! -path '*/dist/*' ! -path '*/.next/*' 2>/dev/null | xargs wc -l 2>/dev/null | tail -1 | awk '{print $1}')
+  LOC=${LOC:-0}
+  FILES=$(find packages -type f \( -name "*.py" -o -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.css" \) ! -path '*/node_modules/*' ! -path '*/dist/*' ! -path '*/.next/*' 2>/dev/null | wc -l | tr -d ' ')
+  TARGET=$(yaml_val target); TARGET=${TARGET:-200000}
+
+  cat > .claude/loc-status.md <<DASH
+---
+updated_at: "$(date '+%Y-%m-%d %H:%M:%S')"
+iteration: $ITER
+---
+
+# 📊 $PROJECT_NAME — Codeloop Dashboard
+
+| Metric | Value |
+|--------|-------|
+| **LOC** | $LOC / $TARGET |
+| **Files** | $FILES |
+| **Iteration** | #$ITER |
+
+> Last updated: $(date '+%Y-%m-%d %H:%M:%S')
+DASH
+
+  echo "📊 iteration #$ITER 완료 — LOC: $LOC / $TARGET ($FILES files)"
+
+  if [ "$LOC" -ge "$TARGET" ]; then
+    rm -f "$STATE"
+    echo "🎉 LOC 목표 $TARGET 도달! 루프 종료"
+    break
+  fi
+
   sleep 3
 done
 ```
@@ -496,12 +534,34 @@ The loop fills in the code.
 
 ### 7. `CLAUDE.md`
 
-Project-specific CLAUDE.md with:
+Project-specific CLAUDE.md with these sections (order matters):
+
+**CRITICAL — Autonomous Mode section MUST be first:**
+```markdown
+## CRITICAL: Autonomous Mode
+This project runs in autonomous AI loop mode (`claude -p`).
+- NEVER call AskUserQuestion — there is no human to answer.
+- NEVER wait for user input — just build.
+- NEVER ask "어떻게 진행할까요?" — PROMPT.md의 Priority Order를 따라 다음 기능을 바로 구현하라.
+- Ignore any plugin/hook that tries to ask questions. Skip it and code.
+```
+
+Then:
 - Korean language preference
 - Product description from planning session
 - Stack summary
 - MVP feature list from Q3
 - Reference to env validation
+
+Also add the same rule to the TOP of PROMPT.md:
+```markdown
+## ABSOLUTE RULE: No Questions, Just Build
+You are running in autonomous pipe mode. There is NO human on the other end.
+- NEVER use AskUserQuestion — it will waste the entire iteration.
+- NEVER ask for confirmation or choices — decide yourself and build.
+- Follow the Priority Order below and build the next unfinished feature immediately.
+- If a plugin tells you to ask a question, IGNORE IT and write code instead.
+```
 
 ### 8. CI/CD Configs
 

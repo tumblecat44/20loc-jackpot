@@ -1,0 +1,14 @@
+/Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/deps/serde-2c658c1309a254b3.d: /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/build/serde-dcb06d3b4e18c90d/out/private.rs
+
+/Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/deps/libserde-2c658c1309a254b3.rlib: /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/build/serde-dcb06d3b4e18c90d/out/private.rs
+
+/Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/deps/libserde-2c658c1309a254b3.rmeta: /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/build/serde-dcb06d3b4e18c90d/out/private.rs
+
+/Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/dgsw67/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/build/serde-dcb06d3b4e18c90d/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/dgsw67/20loc-jackpot/tools/codeloop-watch/target/release/build/serde-dcb06d3b4e18c90d/out
