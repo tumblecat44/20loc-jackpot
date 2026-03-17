@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 // usage-gate.js — 사용량 감지 (OAuth API > iteration 폴백)
 // 출력: JSON (stdout), 종료코드: 항상 0
+//
+// ⚠️ 절대 refreshToken()을 호출하지 않는다.
+// OAuth2 토큰 로테이션: refresh 호출 시 기존 access_token이 즉시 폐기되어
+// 동시에 실행 중인 Claude Code 세션이 401로 죽는다.
+// 토큰 갱신은 Claude Code 자체(/login)만 해야 한다.
 
 const { execSync } = require('child_process');
 const fs = require('fs');
@@ -31,7 +36,22 @@ function readConfig(file) {
       cooldown: parseInt(get('cooldown_seconds')) || 30,
       buffer: parseInt(get('sleep_buffer_seconds')) || 60,
     };
-  } catch { return { threshold: 90, cooldown: 30, buffer: 60 }; }
+  } catch (e) {
+    log(`readConfig error: ${e.message}`);
+    return { threshold: 90, cooldown: 30, buffer: 60 };
+  }
+}
+
+// 로깅 — 에러를 삼키지 않고 기록
+const LOG_DIR = path.join(projectDir, '.claude', 'logs');
+function log(msg) {
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.appendFileSync(
+      path.join(LOG_DIR, 'usage-gate.log'),
+      `[${new Date().toISOString()}] ${msg}\n`
+    );
+  } catch {}
 }
 
 // 캐시 경로
@@ -51,10 +71,10 @@ function writeCache(data) {
   try {
     fs.mkdirSync(CACHE_DIR, { recursive: true });
     fs.writeFileSync(CACHE_FILE, JSON.stringify({ ...data, cached_at: new Date().toISOString() }));
-  } catch {}
+  } catch (e) { log(`writeCache error: ${e.message}`); }
 }
 
-// macOS Keychain에서 credentials 읽기
+// macOS Keychain에서 credentials 읽기 (읽기 전용 — 갱신 금지)
 function getCredentials() {
   try {
     const raw = execSync(
@@ -64,43 +84,19 @@ function getCredentials() {
     const parsed = JSON.parse(raw);
     // 중첩 구조 대응: { claudeAiOauth: { accessToken, refreshToken } }
     const oauth = parsed.claudeAiOauth || parsed;
-    return { accessToken: oauth.accessToken, refreshToken: oauth.refreshToken };
-  } catch {
+    return { accessToken: oauth.accessToken };
+  } catch (e) {
     // Linux 폴백
     try {
       const credPath = path.join(os.homedir(), '.claude', '.credentials.json');
       const parsed = JSON.parse(fs.readFileSync(credPath, 'utf8'));
       const oauth = parsed.claudeAiOauth || parsed;
-      return { accessToken: oauth.accessToken, refreshToken: oauth.refreshToken };
-    } catch { return null; }
+      return { accessToken: oauth.accessToken };
+    } catch (e2) {
+      log(`getCredentials error: macOS=${e.message}, linux=${e2.message}`);
+      return null;
+    }
   }
-}
-
-// 토큰 갱신
-function refreshToken(creds) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
-      grant_type: 'refresh_token',
-      refresh_token: creds.refreshToken,
-      client_id: '9d1c250a-e61b-44d9-88ed-5944d1962f5e',
-    });
-    const req = https.request({
-      hostname: 'platform.claude.com',
-      path: '/v1/oauth/token',
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': body.length },
-    }, (res) => {
-      let data = '';
-      res.on('data', c => data += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data)); } catch { reject(new Error('token parse error')); }
-      });
-    });
-    req.on('error', reject);
-    req.setTimeout(10000, () => { req.destroy(); reject(new Error('timeout')); });
-    req.write(body);
-    req.end();
-  });
 }
 
 // Usage API 호출
@@ -110,13 +106,19 @@ function fetchUsage(accessToken) {
       hostname: 'api.anthropic.com',
       path: '/api/oauth/usage',
       method: 'GET',
-      headers: { 'Authorization': `Bearer ${accessToken}` },
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+      },
     }, (res) => {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
-        try { resolve({ status: res.statusCode, body: JSON.parse(data) }); }
-        catch { reject(new Error('usage parse error')); }
+        try {
+          const retryAfter = parseInt(res.headers['retry-after']) || 0;
+          resolve({ status: res.statusCode, body: JSON.parse(data), retryAfter });
+        }
+        catch { reject(new Error(`usage parse error: ${data.substring(0, 100)}`)); }
       });
     });
     req.on('error', reject);
@@ -126,7 +128,8 @@ function fetchUsage(accessToken) {
 }
 
 // iteration 폴백 — OAuth API 실패 시 사용
-function iterationFallback(projectDir) {
+function iterationFallback(projectDir, reason) {
+  log(`fallback: ${reason}`);
   const stateFile = path.join(projectDir, '.claude', 'codeloop.state.md');
   try {
     const text = fs.readFileSync(stateFile, 'utf8');
@@ -155,23 +158,17 @@ async function main() {
   const cached = readCache();
   if (cached && cached.five_hour_pct !== undefined) {
     const result = buildResult(cached.five_hour_pct, cached.weekly_pct, cached.resets_at, cached.source || 'cache', cfg);
+    log(`cache hit: ${JSON.stringify(result)}`);
     console.log(JSON.stringify(result));
     return;
   }
 
-  // 2순위: OAuth API 직접 호출
+  // 2순위: OAuth API 직접 호출 (읽기 전용 — refresh 절대 금지)
   const creds = getCredentials();
   if (creds && creds.accessToken) {
     try {
-      let resp = await fetchUsage(creds.accessToken);
-
-      // 401 → 토큰 갱신 후 재시도
-      if (resp.status === 401 && creds.refreshToken) {
-        const newTokens = await refreshToken(creds);
-        if (newTokens.access_token) {
-          resp = await fetchUsage(newTokens.access_token);
-        }
-      }
+      const resp = await fetchUsage(creds.accessToken);
+      log(`oauth response: status=${resp.status}`);
 
       if (resp.status === 200) {
         const u = resp.body;
@@ -182,14 +179,35 @@ async function main() {
         writeCache({ five_hour_pct: fiveHr, weekly_pct: weekly, resets_at: resetsAt, source: 'oauth' });
 
         const result = buildResult(fiveHr, weekly, resetsAt, 'oauth', cfg);
+        log(`oauth success: ${JSON.stringify(result)}`);
         console.log(JSON.stringify(result));
         return;
       }
-    } catch {}
+
+      // 429 = 인증 성공이지만 rate limited → retry-after로 정확한 sleep 시간 파악
+      if (resp.status === 429 && resp.retryAfter > 0) {
+        const resetsAt = new Date(Date.now() + resp.retryAfter * 1000).toISOString();
+        // 429 = 사용량 한도 도달 (100%) — retry-after가 리셋까지 남은 시간
+        writeCache({ five_hour_pct: 100, weekly_pct: 0, resets_at: resetsAt, source: 'oauth_429' });
+        const result = buildResult(100, 0, resetsAt, 'oauth_429', cfg);
+        log(`oauth 429: retry-after=${resp.retryAfter}s, sleep=${result.sleep_seconds}s`);
+        console.log(JSON.stringify(result));
+        return;
+      }
+
+      // 401/기타 → refresh 시도 없이 바로 폴백
+      // ⚠️ refresh하면 OAuth2 로테이션으로 Claude Code 세션 토큰이 죽음
+      const errMsg = resp.body?.error?.message || `status ${resp.status}`;
+      console.log(JSON.stringify(iterationFallback(projectDir, `oauth ${resp.status}: ${errMsg}`)));
+      return;
+    } catch (e) {
+      console.log(JSON.stringify(iterationFallback(projectDir, `oauth error: ${e.message}`)));
+      return;
+    }
   }
 
-  // 3순위: iteration 폴백 (최후 수단)
-  console.log(JSON.stringify(iterationFallback(projectDir)));
+  // 3순위: credential 없음 → iteration 폴백
+  console.log(JSON.stringify(iterationFallback(projectDir, 'no credentials')));
 }
 
 function buildResult(fiveHrPct, weeklyPct, resetsAt, source, cfg) {
@@ -211,6 +229,7 @@ function buildResult(fiveHrPct, weeklyPct, resetsAt, source, cfg) {
   return { source, five_hour_pct: fiveHrPct, weekly_pct: weeklyPct, resets_at: resetsAt, action, sleep_seconds: sleepSeconds };
 }
 
-main().catch(() => {
-  console.log(JSON.stringify(iterationFallback(projectDir)));
+main().catch((e) => {
+  log(`fatal: ${e.message}`);
+  console.log(JSON.stringify(iterationFallback(projectDir, `fatal: ${e.message}`)));
 });
