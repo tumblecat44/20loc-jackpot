@@ -117,7 +117,8 @@ function fetchUsage(accessToken) {
   });
 }
 
-// iteration 폴백 (원조 방식)
+// iteration 폴백 (원조 방식) — OAuth API 실패 시에만 사용
+// 주의: 이건 추정치일 뿐 실제 사용량과 다를 수 있음 → sleep을 보수적으로 짧게
 function iterationFallback(projectDir) {
   const stateFile = path.join(projectDir, '.claude', 'codeloop.state.md');
   try {
@@ -131,8 +132,11 @@ function iterationFallback(projectDir) {
       five_hour_pct: pct,
       weekly_pct: 0,
       resets_at: null,
-      action: pct >= 90 ? 'sleep' : pct >= 85 ? 'cooldown' : 'cooldown',
-      sleep_seconds: pct >= 90 ? 1800 : 30,
+      iteration: iter,
+      // OAuth 실패 시 과도한 sleep 방지: 최대 60초 cooldown만
+      // (stop-hook.sh에서도 iteration_fallback sleep을 cap하지만 이중 보호)
+      action: 'cooldown',
+      sleep_seconds: 30,
     };
   } catch {
     return { source: 'iteration_fallback', five_hour_pct: 0, weekly_pct: 0, action: 'cooldown', sleep_seconds: 30 };
