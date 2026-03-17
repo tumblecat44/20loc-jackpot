@@ -17,3 +17,4 @@ usage-gate 구현 원칙: OAuth API(`GET api.anthropic.com/api/oauth/usage`)가 
 스택 버전은 항상 WebSearch로 최신 stable 버전을 확인 후 작성 — 기억이나 이전 파일 복사로 버전을 적지 않는다; 검증된 현재 버전(2026-03): Next.js 16, Node.js 24 LTS, React 19.2, TypeScript 5, Tailwind v4, Prisma 7, Express 5, React Native 0.84, Expo SDK 55, PostgreSQL 17, Redis 8.6.
 백엔드 프레임워크는 FastAPI 고정(Express 사용 금지), DB는 PostgreSQL 고정 — 선택지가 아닌 고정값이며 스킬/스캐폴딩 생성 시 이 기준을 따른다.
 `skills/*/references/stacks.md` 등 모든 스킬 참조 파일에도 FastAPI/PostgreSQL 기본값이 반드시 반영되어야 한다 — 규칙 파일과 실제 프리셋 파일의 동기화는 별도로 검증할 것.
+외부 라이브러리/API 사용 시 반드시 `chub get <id>`로 최신 문서를 확인한 후 코딩 — 훈련 데이터의 기억에 의존하지 않는다; context-hub(`@aisuite/chub`)는 플러그인 설치 시 SessionStart 훅이 자동 설치하며, `skills/get-api-docs/SKILL.md` 스킬이 사용법을 안내한다.
