@@ -27,6 +27,12 @@ SCRIPTS="$PLUGIN_ROOT/scripts"
 
 source "$SCRIPTS/parse-yaml.sh"
 
+# ─── codeloop 모드 체크: start.sh에서 실행될 때만 동작 ───
+# 일반 대화(interactive/IDE)에서는 즉시 종료
+if [ "${CODELOOP_ACTIVE:-}" != "1" ]; then
+  exit 0
+fi
+
 # ─── 로깅 설정 ───
 LOG_DIR="$PROJECT_DIR/.claude/logs"
 mkdir -p "$LOG_DIR"

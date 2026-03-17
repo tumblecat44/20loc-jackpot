@@ -82,6 +82,7 @@ echo "Starting Claude Code with codeloop..."
 echo ""
 
 # ─── claude -p 실행 (Stop Hook이 루프 제어) ───
+export CODELOOP_ACTIVE=1
 claude --dangerously-skip-permissions \
   --model "$MODEL" \
   --verbose \
