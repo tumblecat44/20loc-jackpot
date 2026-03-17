@@ -111,21 +111,25 @@ Q1~Q3 답변을 분석해서, 고정 스택 위에 어떤 구성요소가 올라
 
    스택이 고정이므로 Growth 자동화에 필요한 서비스도 사전에 확정할 수 있다.
 
-   | 서비스 | 용도 | 접근 방식 |
-   |--------|------|----------|
-   | **Twitter/X** | 빌드 인 퍼블릭 — 개발 진행 상황 자동 트윗 | API v2 우선 → 없으면 Browser 자동화 |
-   | **Reddit** | 니치 커뮤니티 PMF 검증 + 런칭 포스트 | API (PRAW) 우선 → 없으면 Browser |
-   | **Product Hunt** | 런칭 시 트래픽 폭발 | API 우선 → 없으면 Browser |
-   | **Hacker News** | Show HN 런칭 | 포스팅 API 없음 → Browser 전용 |
-   | **Resend** | 트랜잭셔널 이메일 (가입확인, 결제알림) | API |
+   | 서비스 | 용도 | 접근 방식 | 필수 여부 |
+   |--------|------|----------|----------|
+   | **Twitter/X** | 빌드 인 퍼블릭 — 개발 중 자동 트윗 | X API v2 + tweepy (Python) | **필수** (개발 시작부터) |
+   | **Reddit** | 니치 커뮤니티 PMF 검증 + 런칭 | PRAW (Python Reddit API Wrapper) | 런칭 시 필수 |
+   | **Product Hunt** | 런칭 시 트래픽 폭발 | API 또는 Browser (Playwright) | 런칭 시 필수 |
+   | **Hacker News** | Show HN 런칭 | Browser 전용 (포스팅 API 없음) | 런칭 시 필수 |
+   | **Resend** | 트랜잭셔널 이메일 (가입확인, 결제알림) | API | 기획에서 이메일 감지 시 |
+
+   **Twitter/X API 검증 완료 (2026.03):**
+   - Endpoint: `POST https://api.x.com/2/tweets`
+   - 인증: OAuth 1.0a User Context (tweepy 기본값)
+   - Rate limit: 100 트윗/15분 (per user), 10,000/24시간 (per app)
+   - 빌드 인 퍼블릭 용도 (하루 1~2 트윗)면 제한 없음
+   - 과금: pay-per-usage (크레딧 사전 충전, 소량 사용 시 거의 무료)
+   - Python: `tweepy.Client.create_tweet(text="...")` 한 줄로 포스팅
 
    **단계별 활성화:**
-   - **개발 중 (항상)**: Twitter/X에 빌드 인 퍼블릭 자동 포스팅
+   - **개발 중 (항상)**: Twitter/X 빌드 인 퍼블릭 자동 포스팅
    - **배포 후 (런칭 시)**: Product Hunt + Hacker News + Reddit 활동 시작
-
-   **Browser 자동화 폴백:**
-   API가 없거나 제한적인 플랫폼은 agentic-browser (Playwright)로 직접 로그인하여 활동.
-   이를 위해 username/password를 env에 준비해야 한다.
 
 4. **API 엔드포인트 설계** (MVP 기능 3개 기반):
    - 각 MVP 기능에 필요한 API 라우트 목록
@@ -215,45 +219,45 @@ STRIPE_WEBHOOK_SECRET=     # stripe listen 으로 생성
 NEXT_PUBLIC_API_URL=       # http://localhost:8000 (dev)
 ```
 
-### Growth Env Vars (항상 필요)
-
-소셜 미디어 자동화는 1인 창업가의 수익 실현에 필수.
-API가 있으면 API 사용, 없으면 Browser 자동화 (username/password).
+### Growth Env Vars
 
 ```bash
-# === Twitter/X (빌드 인 퍼블릭 — 개발 중 항상 활성) ===
-# 방법 1: API v2 (권장 — developer.x.com)
-TWITTER_API_KEY=
-TWITTER_API_SECRET=
-TWITTER_ACCESS_TOKEN=
-TWITTER_ACCESS_SECRET=
-# 방법 2: Browser 자동화 폴백 (API 없을 때)
-TWITTER_USERNAME=
-TWITTER_PASSWORD=
+# === Twitter/X (필수 — 빌드 인 퍼블릭, 개발 시작부터 활성) ===
+# console.x.com → App 생성 → Keys and tokens 탭에서 4개 모두 복사
+# OAuth 1.0a User Context — tweepy 기본 인증 방식
+# 스코프: tweet.read, tweet.write, users.read
+# Rate limit: 100 트윗/15분 (per user) — 빌드인퍼블릭엔 충분
+TWITTER_API_KEY=               # API Key (= Consumer Key)
+TWITTER_API_SECRET=            # API Key Secret (= Consumer Secret)
+TWITTER_ACCESS_TOKEN=          # Access Token (사용자 계정 권한)
+TWITTER_ACCESS_TOKEN_SECRET=   # Access Token Secret
 
-# === Reddit (런칭 시 활성) ===
-# 방법 1: API (reddit.com/prefs/apps — script type app 생성)
-REDDIT_CLIENT_ID=
-REDDIT_CLIENT_SECRET=
-REDDIT_USERNAME=
-REDDIT_PASSWORD=
+# === Reddit (런칭 시 필수) ===
+# reddit.com/prefs/apps → "create app" → script type 선택
+# PRAW (Python Reddit API Wrapper)로 글 작성 + 댓글 대응
+REDDIT_CLIENT_ID=              # app의 client_id (앱 이름 아래 짧은 문자열)
+REDDIT_CLIENT_SECRET=          # app의 secret
+REDDIT_USERNAME=               # Reddit 계정 username
+REDDIT_PASSWORD=               # Reddit 계정 password
 
-# === Product Hunt (런칭 시 활성) ===
-# 방법 1: API (producthunt.com/v2/oauth/applications)
-PRODUCTHUNT_API_TOKEN=
-# 방법 2: Browser 자동화 폴백
-PRODUCTHUNT_EMAIL=
-PRODUCTHUNT_PASSWORD=
+# === Product Hunt (런칭 시 필수) ===
+# producthunt.com/v2/oauth/applications 에서 토큰 발급
+PRODUCTHUNT_API_TOKEN=         # Developer token
+# API 제한 시 Browser 폴백: 아래 추가
+PRODUCTHUNT_EMAIL=             # (선택) Browser 자동화용
+PRODUCTHUNT_PASSWORD=          # (선택) Browser 자동화용
 
-# === Hacker News (런칭 시 활성 — API 포스팅 없음, Browser 전용) ===
-HN_USERNAME=
-HN_PASSWORD=
+# === Hacker News (런칭 시 필수 — 포스팅 API 없음, Browser 전용) ===
+# news.ycombinator.com 계정 필요
+HN_USERNAME=                   # HN 계정 username
+HN_PASSWORD=                   # HN 계정 password
 ```
 
-**Env 검증 시 Growth 항목 규칙:**
-- Twitter env는 API 세트(4개) 또는 Browser 세트(2개) 중 하나만 있으면 통과
-- Reddit은 API 4개 세트 또는 Browser 2개 세트 중 하나
-- Product Hunt, Hacker News는 런칭 전까지 선택적 (경고만, 차단 안 함)
+**Env 검증 규칙:**
+- **Twitter 4개 키: 필수** — 없으면 `validate-env.sh` 통과 못함 (빌드 인 퍼블릭은 Day 1부터)
+- **Reddit 4개: 런칭 전까지 경고만** (⚠️), 런칭 시 필수로 전환
+- **Product Hunt: 런칭 전까지 경고만** (API 토큰 또는 email/password 중 하나)
+- **Hacker News: 런칭 전까지 경고만** (username/password)
 
 ### Conditional Env Vars (기획에서 감지 시)
 

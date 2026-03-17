@@ -110,23 +110,45 @@ You don't just build — you PROMOTE. A product nobody knows about makes $0.
 
 Every 10 iterations (or after a significant feature), post a tweet about what you built.
 
-**Twitter/X posting:**
-1. Check if Twitter API env vars exist → use `tweepy` (Python) to post
-2. If no API keys but username/password exist → use Playwright browser automation:
-   - Launch browser → login to x.com → compose tweet → post
-3. Tweet format: conversational, show progress, include screenshot if visual
-   ```
-   Day {N}: {PROJECT_NAME} 빌드 중 🔨
-   오늘 추가한 것: {feature description}
-   {screenshot or code snippet}
-   #buildinpublic #indiehacker
-   ```
+**Twitter/X posting (X API v2 + tweepy):**
+
+Twitter API env는 필수로 세팅되어 있다. tweepy로 바로 포스팅:
+
+```python
+import tweepy
+import os
+
+client = tweepy.Client(
+    consumer_key=os.environ["TWITTER_API_KEY"],
+    consumer_secret=os.environ["TWITTER_API_SECRET"],
+    access_token=os.environ["TWITTER_ACCESS_TOKEN"],
+    access_token_secret=os.environ["TWITTER_ACCESS_TOKEN_SECRET"]
+)
+
+# 트윗 포스팅
+client.create_tweet(text="Day 5: Stripe 결제 연동 완료 💰 #buildinpublic #indiehacker")
+
+# 답글 달기
+client.create_tweet(text="@someone 감사합니다!", in_reply_to_tweet_id="12345")
+```
+
+Endpoint: `POST https://api.x.com/2/tweets`
+Rate limit: 100/15min (per user), 10,000/24hr (per app)
+비용: pay-per-usage 크레딧 (하루 1~2트윗이면 거의 무료)
+
+**Tweet format** — 자연스럽고 진정성 있게:
+```
+Day {N}: {PROJECT_NAME} 빌드 중 🔨
+오늘 추가한 것: {feature description}
+{구체적 숫자나 스크린샷 설명}
+#buildinpublic #indiehacker
+```
 
 **Rules:**
-- Don't spam. Max 2 tweets per day.
-- Be genuine — share real progress, struggles, decisions
-- Engage with replies (check notifications, respond to comments)
-- Thread major milestones (launch, first user, first $)
+- Max 2 tweets per day. 스팸 금지.
+- Be genuine — real progress, struggles, decisions 공유
+- 답글 대응: `client.get_users_mentions()`로 멘션 확인, 댓글에 답글
+- Thread major milestones (launch, first user, first $) — `in_reply_to_tweet_id`로 스레드
 
 ### Phase B: Launch Campaign (배포 후 — 런칭 시 1회)
 
