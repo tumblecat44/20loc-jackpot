@@ -498,8 +498,10 @@ command -v chub >/dev/null 2>&1 || npm install -g @aisuite/chub
 ## Important Notes
 
 - Stack is FIXED. Never ask about framework or deployment choices.
-- Planning questions (Q1~Q4) are the core — spend time here getting clarity.
+- Planning questions (Q1~Q3) are the core — spend time here getting clarity.
 - If the user already described their product in the initial message, pre-fill Q1 and confirm.
 - Env gate is HARD — no workarounds. Every required key must have a value.
-- The generated PROMPT.md must include auto-deploy instructions so the AI loop handles
-  deployment, CI/CD, and monitoring without human intervention.
+- The generated PROMPT.md must include auto-deploy AND growth automation instructions
+  so the AI loop handles deployment, CI/CD, monitoring, AND promotion without human intervention.
+- Twitter env는 필수 (빌드 인 퍼블릭). Reddit/PH/HN은 런칭 전까진 경고만.
+- Growth env 검증: API 세트 또는 Browser 세트 중 하나만 있으면 통과.
