@@ -62,7 +62,8 @@ const CACHE_TTL = 30_000; // 30초
 function readCache() {
   try {
     const data = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
-    if (Date.now() - new Date(data.cached_at).getTime() < CACHE_TTL) return data;
+    const ttl = data.cached_ttl_override || CACHE_TTL;
+    if (Date.now() - new Date(data.cached_at).getTime() < ttl) return data;
   } catch {}
   return null;
 }
@@ -184,14 +185,15 @@ async function main() {
         return;
       }
 
-      // 429 = 인증 성공이지만 rate limited → retry-after로 정확한 sleep 시간 파악
-      if (resp.status === 429 && resp.retryAfter > 0) {
-        const resetsAt = new Date(Date.now() + resp.retryAfter * 1000).toISOString();
-        // 429 = 사용량 한도 도달 (100%) — retry-after가 리셋까지 남은 시간
-        writeCache({ five_hour_pct: 100, weekly_pct: 0, resets_at: resetsAt, source: 'oauth_429' });
-        const result = buildResult(100, 0, resetsAt, 'oauth_429', cfg);
-        log(`oauth 429: retry-after=${resp.retryAfter}s, sleep=${result.sleep_seconds}s`);
-        console.log(JSON.stringify(result));
+      // 429 = usage API 엔드포인트 자체의 rate limit (호출 빈도 초과)
+      // ⚠️ 429 ≠ "Claude 사용량 100%" — 엔드포인트를 너무 자주 때린 것
+      // iteration_fallback으로 넘김 (실제 사용량을 모르니 추정치 사용)
+      if (resp.status === 429) {
+        const retryAfter = resp.retryAfter || 60;
+        log(`oauth 429: endpoint rate limited (retry-after=${retryAfter}s) — NOT usage limit`);
+        // 캐시 TTL을 retry-after로 설정하여 엔드포인트 재호출 방지
+        writeCache({ ...iterationFallback(projectDir, `oauth 429 endpoint rate limit`), cached_ttl_override: retryAfter * 1000 });
+        console.log(JSON.stringify(iterationFallback(projectDir, `oauth 429 endpoint rate limit`)));
         return;
       }
 
