@@ -413,17 +413,70 @@ The validation script from Phase 2. `chmod +x`.
 
 ### 5. `start.sh`
 
-Same as before, but with env validation prepended:
+The loop launcher. This IS the codeloop engine — do NOT call `codeloop start` or any external CLI.
 
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# Env validation gate
+# ─── Env validation gate ───
 bash validate-env.sh || exit 1
 
-# ... rest of start.sh (same as original)
+# ─── 설정 로드 ───
+CONFIG="codeloop.yaml"
+[ ! -f "$CONFIG" ] && echo "❌ codeloop.yaml not found" && exit 1
+
+yaml_val() { grep "^[[:space:]]*$1:" "$CONFIG" | head -1 | sed "s/.*$1:[[:space:]]*//" | tr -d '"'"'"; }
+
+PROMPT_PATH=$(yaml_val prompt); PROMPT_PATH=${PROMPT_PATH:-./PROMPT.md}
+MODEL=$(yaml_val model); MODEL=${MODEL:-opus}
+PROJECT_NAME=$(yaml_val name); PROJECT_NAME=${PROJECT_NAME:-codeloop}
+
+[ ! -f "$PROMPT_PATH" ] && echo "❌ $PROMPT_PATH not found" && exit 1
+PROMPT=$(cat "$PROMPT_PATH")
+
+# ─── git 초기화 ───
+if [ ! -d .git ]; then
+  git init && printf "node_modules/\n.next/\n__pycache__/\n.env\n.env.local\n.venv/\n" > .gitignore
+  git add .gitignore && git commit -m "Initial commit"
+fi
+
+# ─── 상태 파일 ───
+mkdir -p .claude
+cat > .claude/codeloop.state.md <<STATE
+---
+active: true
+iteration: 0
+started_at: "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+---
+
+$PROMPT
+STATE
+
+rm -f .claude/loc-status.md
+
+# ─── 배너 ───
+cat <<BANNER
+============================================================
+  🚀 codeloop — AI 자율 개발 루프
+============================================================
+  프로젝트: $PROJECT_NAME | 모델: $MODEL
+  모니터: cat .claude/loc-status.md
+  중지:   rm .claude/codeloop.state.md
+============================================================
+
+BANNER
+
+# ─── 루프 실행 ───
+# Stop Hook이 게이트 체크 → state 파일 삭제로 종료 제어
+export CODELOOP_ACTIVE=1
+
+while [ -f .claude/codeloop.state.md ]; do
+  claude --dangerously-skip-permissions --model "$MODEL" --verbose -p "$PROMPT" || true
+  [ ! -f .claude/codeloop.state.md ] && echo "🎉 codeloop 완료" && break
+  sleep 3
+done
 ```
 
 ### 6. Project Scaffolding
