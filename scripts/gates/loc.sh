@@ -13,48 +13,104 @@ TARGET=$(yaml_get "gates" "$CONFIG" 2>/dev/null || echo "")
 TARGET=$(grep -A2 'type: loc' "$CONFIG" | grep 'target:' | head -1 | awk '{print $2}')
 TARGET=${TARGET:-200000}
 
-# 제외 디렉토리 (원조 58개 + 추가)
-EXCLUDES="node_modules .next dist build out .output coverage __pycache__ .pytest_cache venv .venv env .env vendor .git .bkit .omc .claude .turbo .cache .nuxt .svelte-kit target .gradle .idea .vscode storybook-static .parcel-cache .expo .terraform .serverless cdk.out .aws-sam .vercel .netlify migrations .mypy_cache .ruff_cache .tox eggs *.egg-info site-packages"
-
-# find 제외 옵션 생성 (-prune 방식: 디렉토리 자체를 순회하지 않아 확실하고 빠름)
-PRUNE_EXPR=""
-for d in $EXCLUDES; do
-  if [ -z "$PRUNE_EXPR" ]; then
-    PRUNE_EXPR="-name '$d'"
-  else
-    PRUNE_EXPR="$PRUNE_EXPR -o -name '$d'"
-  fi
-done
-
-# 소스 확장자 (원조 63개 그대로)
-EXTS="ts tsx js jsx mjs cjs py pyw go rs java kt kts scala c h cpp hpp cc cxx cs rb php swift dart lua r R jl ex exs erl hrl hs ml mli clj cljs cljc elm vue svelte html htm css scss sass less styl sql graphql gql proto yaml yml toml json jsonc xml tf hcl sh bash zsh fish ps1 md mdx prisma sol zig nim v cr"
-
-# find 포함 옵션 생성
-FIND_INCLUDES=""
-first=true
-for ext in $EXTS; do
-  if $first; then
-    FIND_INCLUDES="-name '*.$ext'"
-    first=false
-  else
-    FIND_INCLUDES="$FIND_INCLUDES -o -name '*.$ext'"
-  fi
-done
-FIND_INCLUDES="$FIND_INCLUDES -o -name 'Dockerfile' -o -name 'Makefile'"
-
-# 제외 파일 패턴
-FIND_FILE_EXCLUDES="-not -name 'package-lock.json' -not -name 'yarn.lock' -not -name 'pnpm-lock.yaml' -not -name '*.min.js' -not -name '*.min.css' -not -name '*.map' -not -name '*.d.ts' -not -name '*.snap' -not -name '*.svg' -not -name '*.png' -not -name '*.jpg' -not -name '*.gif' -not -name '*.woff*' -not -name '*.ttf' -not -name '*.pdf' -not -name '*.zip' -not -name '*.pyc' -not -name '*.class' -not -name 'go.sum' -not -name 'Cargo.lock' -not -name 'poetry.lock'"
+# ─── 임시 find 스크립트 생성 (eval/subshell 쿼팅 지옥 회피) ───
+FIND_SCRIPT=$(mktemp)
+cat > "$FIND_SCRIPT" <<'FINDEOF'
+#!/usr/bin/env bash
+PROJECT_DIR="$1"
+find "$PROJECT_DIR" \
+  -type d \( \
+    -name node_modules \
+    -o -name .next \
+    -o -name dist \
+    -o -name build \
+    -o -name out \
+    -o -name .output \
+    -o -name coverage \
+    -o -name __pycache__ \
+    -o -name .pytest_cache \
+    -o -name venv \
+    -o -name .venv \
+    -o -name env \
+    -o -name .env \
+    -o -name vendor \
+    -o -name .git \
+    -o -name .bkit \
+    -o -name .omc \
+    -o -name .claude \
+    -o -name .turbo \
+    -o -name .cache \
+    -o -name .nuxt \
+    -o -name .svelte-kit \
+    -o -name target \
+    -o -name .gradle \
+    -o -name .idea \
+    -o -name .vscode \
+    -o -name storybook-static \
+    -o -name .parcel-cache \
+    -o -name .expo \
+    -o -name .terraform \
+    -o -name .serverless \
+    -o -name cdk.out \
+    -o -name .aws-sam \
+    -o -name .vercel \
+    -o -name .netlify \
+    -o -name migrations \
+    -o -name .mypy_cache \
+    -o -name .ruff_cache \
+    -o -name .tox \
+    -o -name eggs \
+    -o -name site-packages \
+  \) -prune -o -type f \( \
+    -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" \
+    -o -name "*.mjs" -o -name "*.cjs" -o -name "*.py" -o -name "*.pyw" \
+    -o -name "*.go" -o -name "*.rs" -o -name "*.java" -o -name "*.kt" \
+    -o -name "*.kts" -o -name "*.scala" -o -name "*.c" -o -name "*.h" \
+    -o -name "*.cpp" -o -name "*.hpp" -o -name "*.cc" -o -name "*.cxx" \
+    -o -name "*.cs" -o -name "*.rb" -o -name "*.php" -o -name "*.swift" \
+    -o -name "*.dart" -o -name "*.lua" -o -name "*.r" -o -name "*.R" \
+    -o -name "*.jl" -o -name "*.ex" -o -name "*.exs" -o -name "*.erl" \
+    -o -name "*.hrl" -o -name "*.hs" -o -name "*.ml" -o -name "*.mli" \
+    -o -name "*.clj" -o -name "*.cljs" -o -name "*.cljc" -o -name "*.elm" \
+    -o -name "*.vue" -o -name "*.svelte" -o -name "*.html" -o -name "*.htm" \
+    -o -name "*.css" -o -name "*.scss" -o -name "*.sass" -o -name "*.less" \
+    -o -name "*.styl" -o -name "*.sql" -o -name "*.graphql" -o -name "*.gql" \
+    -o -name "*.proto" -o -name "*.yaml" -o -name "*.yml" -o -name "*.toml" \
+    -o -name "*.json" -o -name "*.jsonc" -o -name "*.xml" -o -name "*.tf" \
+    -o -name "*.hcl" -o -name "*.sh" -o -name "*.bash" -o -name "*.zsh" \
+    -o -name "*.fish" -o -name "*.ps1" -o -name "*.md" -o -name "*.mdx" \
+    -o -name "*.prisma" -o -name "*.sol" -o -name "*.zig" -o -name "*.nim" \
+    -o -name "*.v" -o -name "*.cr" \
+    -o -name Dockerfile -o -name Makefile \
+  \) \
+  ! -name "package-lock.json" \
+  ! -name "yarn.lock" \
+  ! -name "pnpm-lock.yaml" \
+  ! -name "*.min.js" \
+  ! -name "*.min.css" \
+  ! -name "*.map" \
+  ! -name "*.d.ts" \
+  ! -name "*.snap" \
+  ! -name "*.pyc" \
+  ! -name "*.class" \
+  ! -name "go.sum" \
+  ! -name "Cargo.lock" \
+  ! -name "poetry.lock" \
+  -not -path "*.egg-info/*" \
+  -print 2>/dev/null
+FINDEOF
+chmod +x "$FIND_SCRIPT"
 
 # LOC 카운트
 TOTAL=0
 FILE_COUNT=0
 while IFS= read -r file; do
-  if [ -f "$file" ]; then
-    lines=$(grep -cve '^\s*$' "$file" 2>/dev/null || echo 0)
-    TOTAL=$((TOTAL + lines))
-    FILE_COUNT=$((FILE_COUNT + 1))
-  fi
-done < <(eval "find \"$PROJECT_DIR\" \\( -type d \\( $PRUNE_EXPR \\) -prune \\) -o -type f $FIND_FILE_EXCLUDES \\( $FIND_INCLUDES \\) -print" 2>/dev/null)
+  lines=$(grep -cve '^\s*$' "$file" 2>/dev/null || echo 0)
+  TOTAL=$((TOTAL + lines))
+  FILE_COUNT=$((FILE_COUNT + 1))
+done < <(bash "$FIND_SCRIPT" "$PROJECT_DIR")
+
+rm -f "$FIND_SCRIPT"
 
 REMAINING=$((TARGET - TOTAL))
 [ $REMAINING -lt 0 ] && REMAINING=0
