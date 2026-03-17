@@ -62,19 +62,25 @@ FIVE_HR=$(echo "$USAGE_RESULT" | grep -o '"five_hour_pct":[0-9.]*' | head -1 | c
 
 log "USAGE: source=$SOURCE action=$ACTION five_hr=${FIVE_HR:-?}% raw=$USAGE_RESULT"
 
+# sleep/cooldown 처리: 짧은 대기만 stop-hook에서 수행
+# 긴 sleep(rate limit 대기)은 start.sh의 while 루프에 위임
+# — stop-hook에서 긴 sleep하면 Claude Code가 exit한 후 block 출력이 허공으로 감
+MAX_HOOK_SLEEP=60  # stop-hook 내 최대 대기: 60초
 if [ "$ACTION" = "sleep" ]; then
   SLEEP_SEC=$(echo "$USAGE_RESULT" | grep -o '"sleep_seconds":[0-9]*' | head -1 | cut -d: -f2)
-  # iteration_fallback의 과도한 sleep 방지: OAuth 실패로 인한 sleep은 최대 60초로 제한
-  if [ "$SOURCE" = "iteration_fallback" ] && [ "$SLEEP_SEC" -gt 60 ]; then
-    log "WARN: iteration_fallback sleep ${SLEEP_SEC}s → capped to 60s (OAuth 실패 보호)"
-    SLEEP_SEC=60
+  if [ "$SLEEP_SEC" -gt "$MAX_HOOK_SLEEP" ]; then
+    log "SLEEP: ${SLEEP_SEC}s needed → capped to ${MAX_HOOK_SLEEP}s in hook (start.sh will retry)"
+    echo "⏸️  codeloop: 사용량 한도 도달 — start.sh가 재시도합니다" >&2
+    sleep "$MAX_HOOK_SLEEP"
+  else
+    log "SLEEP: ${SLEEP_SEC}s (action=sleep)"
+    echo "⏸️  codeloop: 사용량 한도 — ${SLEEP_SEC}초 대기" >&2
+    sleep "$SLEEP_SEC"
   fi
-  log "SLEEP: ${SLEEP_SEC}s (action=sleep)"
-  echo "⏸️  codeloop: 사용량 한도 도달 — ${SLEEP_SEC}초 대기" >&2
-  sleep "$SLEEP_SEC"
 elif [ "$ACTION" = "cooldown" ]; then
   COOL=$(echo "$USAGE_RESULT" | grep -o '"sleep_seconds":[0-9]*' | head -1 | cut -d: -f2)
   COOL=${COOL:-30}
+  if [ "$COOL" -gt "$MAX_HOOK_SLEEP" ]; then COOL=$MAX_HOOK_SLEEP; fi
   log "COOLDOWN: ${COOL}s"
   sleep "$COOL"
 else

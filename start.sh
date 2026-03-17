@@ -81,9 +81,24 @@ BANNER
 echo "Starting Claude Code with codeloop..."
 echo ""
 
-# ─── claude -p 실행 (Stop Hook이 루프 제어) ───
+# ─── 루프 실행 ───
+# Stop Hook의 block 메커니즘이 기본 루프 드라이버이지만,
+# 긴 sleep(rate limit 대기) 후 block이 실패할 수 있으므로
+# start.sh 자체가 while 루프로 안전망 역할을 한다.
+# 종료 조건: .claude/codeloop.state.md 삭제 (stop-hook이 게이트 통과 시 삭제)
 export CODELOOP_ACTIVE=1
-claude --dangerously-skip-permissions \
-  --model "$MODEL" \
-  --verbose \
-  -p "$PROMPT"
+
+while [ -f .claude/codeloop.state.md ]; do
+  claude --dangerously-skip-permissions \
+    --model "$MODEL" \
+    --verbose \
+    -p "$PROMPT" || true
+  # claude -p 종료 후 state 파일 확인 — 없으면 게이트 통과로 정상 종료
+  if [ ! -f .claude/codeloop.state.md ]; then
+    echo ""
+    echo "🎉 codeloop 완료 — 모든 게이트 통과"
+    break
+  fi
+  # 짧은 대기 후 재시작 (tight loop 방지)
+  sleep 3
+done
